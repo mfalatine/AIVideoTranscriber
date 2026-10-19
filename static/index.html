@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AI Video Transcriber</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css">
+  <script src="/activity.js" defer></script><script src="/choices.js" defer></script><script src="/markdown.js" defer></script><script src="/urls.js" defer></script><script src="/selection.js" defer></script><script src="/readaloud.js" defer></script><script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="sticky-top">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">AVT</span><strong>AI Video Transcriber <small id="appVersion" aria-label="Version"></small></strong></div>
+      <div class="header-controls">
+        <nav class="workspace-tabs" role="tablist" aria-label="Workspace sections">
+          <button id="top-tab-add" role="tab" aria-selected="true" aria-controls="top-panel-add" data-top-tab="add">Add videos</button>
+          <button id="top-tab-library" role="tab" aria-selected="false" aria-controls="top-panel-library" data-top-tab="library">Library<span id="libraryBadge" class="tab-badge"></span></button>
+          <button id="top-tab-activity" role="tab" aria-selected="false" aria-controls="top-panel-activity" data-top-tab="activity">Activity<span id="activityBadge" class="tab-badge busy" hidden></span></button>
+        </nav>
+        <div class="top-actions"><button id="exportAll" class="secondary">Export library</button><button id="settingsButton" class="secondary" aria-haspopup="dialog" aria-controls="settingsDialog">Settings</button></div>
+        <span id="headerActivity" class="header-activity" data-tone="waiting" role="status"><i aria-hidden="true"></i><span id="headerActivityText">Connecting…</span></span>
+      </div>
+    </header>
+    <div id="workBar" class="work-bar" data-tone="busy" role="status" aria-live="polite" hidden>
+      <span id="workSpinner" class="spinner" aria-hidden="true"></span><span id="workMark" class="work-mark" aria-hidden="true" hidden></span>
+      <div class="work-text"><strong id="workAction"></strong><span id="workTitle" class="work-title"></span><span id="workDetail" class="work-detail"></span></div>
+      <div id="workTrack" class="track"><i></i></div>
+      <div class="work-buttons"><button id="workOpen" class="secondary">Open</button><button id="workRetry" class="secondary" hidden>Retry</button><button id="workCancel" class="secondary">Cancel</button><button id="workDismiss" class="close-button" aria-label="Hide this message" hidden>×</button></div>
+    </div>
+  </div>
+  <main class="layout">
+    <div class="top-panels" id="topPanels">
+      <section class="top-panel batch-panel" id="top-panel-add" role="tabpanel" aria-labelledby="top-tab-add">
+        <div class="batch-grid">
+          <div class="batch-input">
+            <textarea id="urls" rows="3" wrap="soft" spellcheck="false" aria-label="YouTube links, one per line" placeholder="Paste YouTube links here, one per line…&#10;https://www.youtube.com/watch?v=…&#10;https://youtu.be/…"></textarea>
+            <div id="urlPreview" class="url-preview" hidden><div id="urlSummary" class="url-summary" role="status"></div><div id="urlWarning" class="url-warning" hidden></div><ul id="urlList" class="url-list"></ul></div>
+            <section class="local-file-box" aria-labelledby="localFileHeading">
+              <div class="local-file-heading"><strong id="localFileHeading">Video file on this PC</strong><span id="localFileReadiness" class="help" role="status">Checking Whisper readiness...</span><button id="recheckWhisper" class="text-button" type="button">Recheck</button></div>
+              <div class="local-file-controls"><label class="local-file-picker" for="localVideoFile">Choose file<input id="localVideoFile" type="file" accept="video/*,.mp4,.m4v,.mov,.webm,.mkv,.avi,.mpeg,.mpg,.3gp,.wmv,.flv,.ts,.mts,.m2ts,.ogv"></label><span id="localFileName" class="local-file-name help">No file selected</span>
+                <label class="local-file-route" for="localFileRoute">using<select id="localFileRoute"><option value="whisper_then_gemini" selected>Whisper, then Gemini</option><option value="whisper">Whisper only</option><option value="gemini">Gemini only</option></select></label><button id="transcribeLocalFile" class="primary" type="button" disabled>Transcribe file</button></div>
+              <p id="localFileStatus" class="help mini" role="status">Choose a file to see its decimal size and route availability.</p>
+            </section>
+          </div>
+          <div class="batch-controls">
+            <div class="batch-action-row"><button id="processAll" class="primary">Get transcripts</button><label for="mode">using</label><select id="mode"><option value="auto">Primary + fallback</option><option value="gemini">Gemini only</option><option value="supadata">Supadata only</option><option value="fetchtranscript">FetchTranscript only</option><option value="antigravity">Antigravity local audio only</option></select></div>
+            <p id="serviceNotice" class="setup-note" hidden>Getting a transcript needs an API key. A Gemini key is free: add it in <strong>Settings</strong>.</p>
+            <div class="batch-help"><span class="help">Up to 100 links at once.</span><button id="compareServices" class="text-button" title="Request each video from every service that has a key, including saved videos. Each request uses that service's quota or credits.">Compare services</button><button id="importButton" class="text-button">Import transcript text</button></div>
+          </div>
+        </div>
+      </section>
+      <section class="top-panel library-section" id="top-panel-library" role="tabpanel" aria-labelledby="top-tab-library" hidden>
+        <div class="library-tools"><input id="search" type="search" placeholder="Find a saved video…" aria-label="Search library"><span id="libraryCount" class="count">0</span><button id="sampleButton" class="text-button">Load a sample</button></div>
+        <div id="library" class="library"></div>
+      </section>
+      <section class="top-panel queue-section" id="top-panel-activity" role="tabpanel" aria-labelledby="top-tab-activity" hidden><div id="activity" class="activity"></div></section>
+    </div>
+    <div id="splitResizer" class="split-resizer" role="separator" aria-orientation="horizontal" aria-label="Resize top panels and transcript workspace" aria-controls="topPanels workspace" aria-valuemin="90" aria-valuemax="510" aria-valuenow="182" tabindex="0"></div>
+    <section class="workspace" id="workspace">
+      <div class="transcript-toolbar">
+        <nav class="tabs" role="tablist" aria-label="Transcript views">
+          <button role="tab" aria-selected="true" aria-controls="panel" id="tab-raw" data-tab="raw" title="Original retrieved text. Formatting and corrections are saved separately.">Raw</button>
+          <button role="tab" aria-selected="false" aria-controls="panel" id="tab-formatted" data-tab="formatted">Formatted</button>
+          <button role="tab" aria-selected="false" aria-controls="panel" id="tab-summary" data-tab="summary">Summary</button>
+          <button role="tab" aria-selected="false" aria-controls="panel" id="tab-ask" data-tab="ask">Ask AI</button>
+        </nav>
+        <div class="transcript-actions" role="group" aria-label="Transcript actions">
+          <span class="tool-group" data-tools="raw"><button id="retrieveCurrent" class="secondary" hidden>Get transcript again</button><label id="timestampsControl" class="check-label"><input type="checkbox" id="timestamps" checked> Timestamps</label><label id="wrapControl" class="check-label"><input type="checkbox" id="wrap" checked> Wrap</label></span>
+          <span class="tool-group" data-tools="formatted summary"><button id="generate" class="secondary" hidden>Regenerate</button></span>
+          <span class="tool-group" data-tools="formatted summary ask"><label class="assistant-control" for="aiProvider"><span>AI</span><select id="aiProvider"></select></label><button id="instructionsButton" class="text-button">Instructions</button></span>
+          <span class="read-controls"><button id="readAloud" class="secondary" title="Read this view out loud; each word is marked as it is spoken. Scroll first to start further down." hidden>Read aloud</button><button id="readPause" class="secondary" hidden>Pause</button><select id="readRate" aria-label="Reading speed" title="Reading speed" hidden><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2×</option></select><select id="readVoice" aria-label="Voice" title="Voice" hidden></select></span><span id="aiStatus" class="visually-hidden"></span><button id="copy" class="secondary">Copy</button><button id="download" class="secondary">Save</button>
+        </div>
+      </div>
+      <section class="terminal-shell" id="panel" role="tabpanel" aria-labelledby="tab-raw">
+        <span id="viewLabel" hidden>ORIGINAL TRANSCRIPT</span>
+        <div class="document-header"><div class="document-title"><div class="document-title-line"><span class="document-label">YouTube Title:</span><span id="videoTitle">No video open</span><a id="openVideo" class="open-video" target="_blank" rel="noopener noreferrer" hidden>Open on YouTube ↗</a></div><div class="document-title-line"><span class="document-label">Transcript by:</span><span id="videoMeta" class="document-meta">—</span></div></div></div>
+        <div id="viewWarning" class="view-warning" hidden></div>
+        <div id="jobStatus" class="job-status" hidden><span class="spinner" aria-hidden="true"></span><div class="job-status-text"><strong id="jobStatusAction"></strong><span id="jobStatusDetail"></span></div><div id="jobStatusTrack" class="track"><i></i></div><button id="jobStatusCancel" class="secondary">Cancel</button></div>
+        <form id="askForm" class="ask-form" hidden><div class="ask-input"><textarea id="question" rows="2" aria-label="Ask about this transcript" placeholder="Ask about this transcript, e.g. What are the main claims, and what evidence is given?" required></textarea><button id="askButton" class="primary" type="submit">Ask</button></div><span class="help mini">Ctrl+Enter sends. Answers use the original transcript and your recent questions.</span></form>
+        <div id="empty" class="empty"><h2 id="emptyTitle">Start by adding a video</h2><p id="emptyText"></p><div class="empty-actions"><button id="emptyAction" class="primary" hidden></button><button id="emptySecondary" class="text-button" hidden></button></div><p id="emptyHint" class="help"></p></div>
+        <div id="draftLabel" class="draft-label" hidden>Draft so far · still writing · not saved yet</div>
+        <div id="transcript" class="terminal-content"></div>
+        <div id="conversation" class="conversation" hidden></div>
+        <div id="viewInfo" class="view-info"></div>
+      </section>
+      <details id="checks" class="checks"><summary>Provider checks <span id="checksCount"></span></summary><p class="help">A successful request proves retrieval, not transcription accuracy. Times and text sizes help compare services.</p><div class="table-scroll"><table><thead><tr><th>Service</th><th>Result</th><th>Time</th><th>Words</th><th>Language</th><th>Details</th></tr></thead><tbody id="checkRows"></tbody></table></div><div class="source-controls"><label for="sourceProvider">Use saved source</label><select id="sourceProvider"></select><button id="downloadJson" class="text-button">Export original response + history (JSON)</button></div></details>
+    </section>
+  </main>
+  <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+  <dialog id="settingsDialog">
+    <form id="settingsForm"><div class="dialog-heading"><div><span class="eyebrow">WORKSPACE SETTINGS</span><h2>Services & AI instructions</h2></div><button type="button" class="close-button" id="closeSettings" aria-label="Close settings">×</button></div>
+      <div class="settings-grid"><section><h3>Transcript services</h3><p class="help">Gemini and the caption services use the API keys below. Antigravity downloads temporary local audio and uses your existing signed-in Antigravity CLI; its audio is deleted after every attempt.</p>
+        <label for="gemini_key">Gemini API key <span id="gemini_state" class="key-state"></span> <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer">Get a free key ↗</a></label><div class="key-row"><input id="gemini_key" type="password" autocomplete="off" placeholder="Paste your API key"><button type="button" id="gemini_remove" class="text-button key-remove" hidden>Remove key</button></div><small id="geminiKeyNote" class="key-note" aria-live="polite"></small>
+        <label for="gemini_model">First Gemini model</label><div class="key-row"><select id="gemini_model"><option value="gemini-3.8-flash">gemini-3.8-flash</option></select><button type="button" id="geminiRefresh" class="text-button" disabled>Refresh list</button></div><input id="gemini_model_custom" maxlength="80" spellcheck="false" autocomplete="off" placeholder="Model name, such as gemini-3.8-flash" aria-label="Gemini model name" hidden><small id="geminiListNote" class="key-note"></small><small id="geminiModelHelp" class="key-note">Google's full model list is shown. A listed model is not necessarily free or able to transcribe video; an unsupported choice fails clearly.</small>
+        <label for="gemini_fallback_models">Daily-quota and capacity fallback order</label><textarea id="gemini_fallback_models" rows="7" maxlength="2000" spellcheck="false" aria-describedby="geminiFallbackHelp"></textarea><small id="geminiFallbackHelp" class="key-note">Best first, one model ID per line. A structured daily-quota limit or an explicit high-demand/capacity HTTP 503 moves the failed clip and the rest of this batch to the next model; generic server errors and short-term rate limits keep their bounded retries.</small>
+        <label for="gemini_clip_seconds">Seconds per Gemini clip</label><input id="gemini_clip_seconds" type="number" min="60" max="3600" step="60"><small id="geminiClipHelp" class="key-note"></small>
+        <label for="supadata_key">Supadata API key <span id="supadata_state" class="key-state"></span> <a href="https://dash.supadata.ai/" target="_blank" rel="noopener noreferrer">Get a free key ↗</a></label><div class="key-row"><input id="supadata_key" type="password" autocomplete="off" placeholder="Paste your API key"><button type="button" id="supadata_remove" class="text-button key-remove" hidden>Remove key</button></div><small id="supadataKeyNote" class="key-note"></small>
+        <label for="fetchtranscript_key">FetchTranscript API key <span id="fetchtranscript_state" class="key-state"></span> <a href="https://fetchtranscript.com/" target="_blank" rel="noopener noreferrer">Get a free key ↗</a></label><div class="key-row"><input id="fetchtranscript_key" type="password" autocomplete="off" placeholder="Paste your API key"><button type="button" id="fetchtranscript_remove" class="text-button key-remove" hidden>Remove key</button></div><small id="fetchtranscriptKeyNote" class="key-note"></small>
+        <div class="settings-pair"><div><label for="primary">Primary</label><select id="primary"><option value="gemini">Gemini</option><option value="supadata">Supadata</option><option value="fetchtranscript">FetchTranscript</option><option value="antigravity">Antigravity local audio</option></select></div><div><label for="fallback">Fallback</label><select id="fallback"><option value="gemini">Gemini</option><option value="supadata">Supadata</option><option value="fetchtranscript">FetchTranscript</option><option value="antigravity">Antigravity local audio</option><option value="none">Disabled</option></select></div></div>
+        <label for="language">Preferred language</label><input id="language" value="en" maxlength="20"><p class="help mini">Gemini and Antigravity listen to the video's audio and write what they hear, so they ignore this setting. Supadata and FetchTranscript copy existing captions and use it to pick the caption language. Their AI transcription and automatic credit purchases are not enabled.</p>
+      </section><div class="settings-column"><section><h3 id="cliHeading">AI assistant for Formatted, Summary and Ask AI</h3><div id="cliList" class="cli-list" role="radiogroup" aria-labelledby="cliHeading"></div>
+        <div id="cliOptions" class="cli-options"><label for="ai_model">Model</label><select id="ai_model"><option value="">CLI default</option></select><input id="ai_model_custom" maxlength="120" spellcheck="false" autocomplete="off" placeholder="Model name for this CLI" aria-label="Model name for this CLI" hidden>
+        <label id="ai_effort_label" for="ai_effort">Reasoning effort</label><select id="ai_effort"><option value="">CLI default</option></select></div>
+        <p class="help mini">Uses your installed CLI and existing login. Each call receives transcript context; the AI has no need for shell commands or file edits.</p>
+      </section><section id="instructionsSection"><h3>Instructions sent with each request</h3><label for="instructions">Basic instructions</label><textarea id="instructions" rows="5"></textarea><label for="format_instructions">Formatted tab</label><textarea id="format_instructions" rows="5"></textarea><label for="summary_instructions">Summary tab</label><textarea id="summary_instructions" rows="4"></textarea><label for="ask_instructions">Ask AI tab</label><textarea id="ask_instructions" rows="4"></textarea><p class="help mini">The original transcript is kept unchanged. AI corrections are suggestions and may need review.</p></section></div></div>
+      <div class="dialog-footer"><span id="settingsMessage" class="help" role="status"></span><button type="submit" class="primary">Save settings</button></div>
+    </form>
+  </dialog>
+  <dialog id="importDialog"><form id="importForm"><div class="dialog-heading"><h2>Import transcript text</h2><button type="button" id="closeImport" class="close-button" aria-label="Close import">×</button></div><p class="help">This saves transcript text you already have. Entering a YouTube URL here does not get a transcript from the video. To get one, use Add videos.</p><label for="importTitle">Title</label><input id="importTitle" placeholder="Video or document title"><label for="importUrl">YouTube URL <span class="help">optional</span></label><input id="importUrl" type="url" placeholder="https://www.youtube.com/watch?v=…"><label for="importText">Paste the full transcript</label><textarea id="importText" rows="12" required></textarea><div class="dialog-footer"><span class="help">Reimporting the same URL replaces its previous manual paste.</span><button class="primary" type="submit">Save pasted transcript</button></div></form></dialog>
+</body>
+</html>

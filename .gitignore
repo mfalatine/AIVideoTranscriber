@@ -1,0 +1,9 @@
+/data/
+_TEMP/
+.env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+whisper-venv/
